@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A simple personal expense tracker application.">
+    <title>Personal Expense Tracker</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #e0f7fa; /* Light teal background */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #004d40; /* Darker teal text */
+            overflow: hidden; /* Hide body overflow */
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+            overflow: auto; /* Allow scrolling within the container */
+            height: 90vh; /* Set height to allow space for scrolling */
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #00796b; /* Deep teal color */
+            font-size: 2em;
+        }
+
+        .expense-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background-color: #e0f2f1;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .expense-form input,
+        .expense-form select,
+        .expense-form button {
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #b2dfdb;
+            color: #00796b;
+        }
+
+        .expense-form button {
+            background-color: #00796b;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .expense-form button:hover {
+            background-color: #004d40;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #ffffff;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid #b2dfdb;
+            text-align: center;
+        }
+
+        th {
+            background-color: #00796b;
+            color: white;
+            font-size: 1em;
+        }
+
+        td button {
+            padding: 5px 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+        }
+
+        td button:first-child {
+            background-color: #0288d1;
+        }
+
+        td button:first-child:hover {
+            background-color: #0277bd;
+        }
+
+        td button:last-child {
+            background-color: #d32f2f;
+        }
+
+        td button:last-child:hover {
+            background-color: #c62828;
+        }
+
+        .total {
+            margin-top: 15px;
+            text-align: right;
+            font-size: 1.25em;
+            color: #00796b;
+            font-weight: bold;
+        }
+
+
+        .scrollable-table {
+            max-height: 300px;
+            overflow-y: auto;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Personal Expense Tracker</h1>
+            <p>Keep track of your daily expenses effortlessly!</p>
+        </header>
+
+        <form class="expense-form" onsubmit="event.preventDefault(); addOrUpdateExpense();">
+            <label for="expense-name">Expense Name:</label>
+            <input type="text" id="expense-name" placeholder="Expense Name" required>
+
+            <label for="expense-amount">Amount:</label>
+            <input type="number" id="expense-amount" placeholder="Amount" required>
+
+            <label for="expense-date">Date:</label>
+            <input type="date" id="expense-date" required>
+
+            <label for="expense-category">Category:</label>
+            <select id="expense-category" onchange="toggleCustomCategory()">
+                <option value="Food">Food</option>
+                <option value="Transport">Transport</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Others">Others</option>
+            </select>
+            <input type="text" id="custom-category" placeholder="Enter custom category" style="display: none;">
+            <button type="submit">Add Expense</button>
+        </form>
+
+        <!-- Scrollable Expense Table -->
+        <div class="scrollable-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="expense-list"></tbody>
+            </table>
+        </div>
+
+        <div class="total">
+            Total Expenses: $<span id="total-amount">0</span>
+        </div>
+    </div>
+
+    <script>
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let editingIndex = null;
+
+        function addOrUpdateExpense() {
+            const name = document.getElementById("expense-name").value;
+            const amount = parseFloat(document.getElementById("expense-amount").value);
+            const date = document.getElementById("expense-date").value;
+            const categorySelect = document.getElementById("expense-category");
+            const customCategory = document.getElementById("custom-category").value;
+            const category = categorySelect.value === "Others" ? customCategory : categorySelect.value;
+
+            if (name && amount && date && category) {
+                const expense = { name, amount, date, category };
+
+                if (editingIndex !== null) {
+                    expenses[editingIndex] = expense;
+                    editingIndex = null;
+                } else {
+                    expenses.push(expense);
+                }
+
+                updateExpenseList();
+                calculateTotal();
+                clearForm();
+                saveExpenses();
+            } else {
+                alert("Please fill out all fields.");
+            }
+        }
+
+        function updateExpenseList() {
+            const expenseList = document.getElementById("expense-list");
+            expenseList.innerHTML = "";
+
+            expenses.forEach((expense, index) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${expense.name}</td>
+                    <td>$${expense.amount.toFixed(2)}</td>
+                    <td>${expense.date}</td>
+                    <td>${expense.category}</td>
+                    <td>
+                        <button onclick="editExpense(${index})">Edit</button>
+                        <button onclick="deleteExpense(${index})">Delete</button>
+                    </td>
+                `;
+                expenseList.appendChild(row);
+            });
+        }
+
+        function calculateTotal() {
+            const totalAmount = expenses.reduce((total, expense) => total + expense.amount, 0);
+            document.getElementById("total-amount").textContent = totalAmount.toFixed(2);
+        }
+
+        function deleteExpense(index) {
+            expenses.splice(index, 1);
+            updateExpenseList();
+            calculateTotal();
+            saveExpenses();
+        }
+
+        function editExpense(index) {
+            const expense = expenses[index];
+            document.getElementById("expense-name").value = expense.name;
+            document.getElementById("expense-amount").value = expense.amount;
+            document.getElementById("expense-date").value = expense.date;
+            document.getElementById("expense-category").value = expense.category;
+            editingIndex = index;
+
+            if (expense.category === "Others") {
+                document.getElementById("custom-category").value = expense.category;
+                document.getElementById("custom-category").style.display = "block";
+            } else {
+                document.getElementById("custom-category").style.display = "none";
+            }
+        }
+
+        function clearForm() {
+            document.getElementById("expense-name").value = "";
+            document.getElementById("expense-amount").value = "";
+            document.getElementById("expense-date").value = "";
+            document.getElementById("expense-category").value = "Food";
+            document.getElementById("custom-category").style.display = "none";
+        }
+
+        function toggleCustomCategory() {
+            const categorySelect = document.getElementById("expense-category");
+            document.getElementById("custom-category").style.display = categorySelect.value === "Others" ? "block" : "none";
+        }
+
+        function saveExpenses() {
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+        }
+
+        updateExpenseList();
+        calculateTotal();
+    </script>
+</body>
+</html>
